@@ -32,10 +32,15 @@
       cursor: pointer;
       transition: all 0.3s;
       text-decoration: none;
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
     }
     .btn-primary { background: linear-gradient(135deg, #00d4ff, #0066ff); color: #fff; }
     .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+    .btn-success { background: linear-gradient(135deg, #00ff88, #00cc66); color: #000; }
     .btn:hover { transform: translateY(-2px); }
+    .btn:disabled { opacity: 0.5; cursor: not-allowed; transform: none; }
     .site-selector {
       background: rgba(255,255,255,0.05);
       border-radius: 15px;
@@ -100,27 +105,6 @@
       padding: 20px;
       text-align: center;
     }
-    .keywords-editor {
-      background: rgba(255,255,255,0.05);
-      border-radius: 15px;
-      padding: 20px;
-      margin-bottom: 20px;
-      border: 1px solid rgba(255,255,255,0.1);
-    }
-    .keywords-editor h3 { color: #00d4ff; margin-bottom: 15px; }
-    .keywords-textarea {
-      width: 100%;
-      min-height: 150px;
-      background: rgba(0,0,0,0.3);
-      border: 1px solid rgba(255,255,255,0.2);
-      border-radius: 10px;
-      color: #fff;
-      padding: 15px;
-      font-family: monospace;
-      resize: vertical;
-    }
-    .keywords-textarea:focus { outline: none; border-color: #00d4ff; }
-    .keywords-actions { margin-top: 15px; display: flex; gap: 10px; }
     .toast {
       position: fixed;
       bottom: 20px;
@@ -131,7 +115,61 @@
       border-radius: 10px;
       font-weight: bold;
       display: none;
+      z-index: 1000;
     }
+    .modal {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      background: rgba(0,0,0,0.8);
+      display: none;
+      justify-content: center;
+      align-items: center;
+      z-index: 1000;
+    }
+    .modal.show { display: flex; }
+    .modal-content {
+      background: #1a1a2e;
+      border-radius: 15px;
+      padding: 30px;
+      max-width: 500px;
+      text-align: center;
+    }
+    .modal h3 { color: #00d4ff; margin-bottom: 20px; }
+    .modal p { color: #888; margin-bottom: 20px; line-height: 1.6; }
+    .progress-bar {
+      width: 100%;
+      height: 10px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 5px;
+      overflow: hidden;
+      margin: 20px 0;
+    }
+    .progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00d4ff, #00ff88);
+      width: 0%;
+      transition: width 0.3s;
+    }
+    .refresh-indicator {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: #888;
+      font-size: 0.9rem;
+    }
+    .refresh-indicator.active { color: #00ff88; }
+    .spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255,255,255,0.2);
+      border-top-color: #00d4ff;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+    @keyframes spin { to { transform: rotate(360deg); } }
   </style>
 </head>
 <body>
@@ -139,6 +177,8 @@
     <header>
       <h1>🌐 GEO 监控系统</h1>
       <div class="header-actions">
+        <button class="btn btn-success" onclick="runMonitor()">▶️ 运行检测</button>
+        <button class="btn btn-secondary" onclick="refreshData()">🔄 刷新数据</button>
         <a href="https://github.com/kaorouwave-cloud/geo-monitor-dashboard" target="_blank" class="btn btn-secondary">📂 源码</a>
       </div>
     </header>
@@ -167,22 +207,29 @@
       </div>
     </div>
 
-    <div class="keywords-editor">
-      <h3>📝 关键词配置</h3>
-      <textarea class="keywords-textarea" id="keywordsText" placeholder="每行一个关键词"></textarea>
-      <div class="keywords-actions">
-        <button class="btn btn-primary" onclick="saveKeywords()">💾 保存</button>
-        <button class="btn btn-secondary" onclick="runMonitor()">🔄 运行检测</button>
-      </div>
-    </div>
-
     <div class="section">
       <h2>📈 关键词排名</h2>
       <div id="reportContent"><div class="loading">正在加载...</div></div>
     </div>
+
+    <div class="refresh-indicator" id="refreshIndicator">
+      <span id="refreshStatus">数据已加载</span>
+    </div>
   </div>
 
-  <div class="toast" id="toast">保存成功！</div>
+  <div class="modal" id="modal">
+    <div class="modal-content">
+      <h3 id="modalTitle">🔄 正在检测</h3>
+      <div class="progress-bar">
+        <div class="progress-fill" id="progressFill"></div>
+      </div>
+      <p id="modalText">正在运行 GEO 监控，请稍候...</p>
+      <p style="font-size: 0.85rem; color: #666;">通常需要 3-5 分钟完成</p>
+      <button class="btn btn-secondary" onclick="closeModal()" style="margin-top: 15px;">关闭（后台继续）</button>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">操作成功！</div>
 
   <script>
     const SITES = [
@@ -191,10 +238,19 @@
     ];
 
     let currentSite = SITES[0];
+    let autoRefreshInterval = null;
 
     function init() {
       renderTabs();
       loadSiteData(currentSite.id);
+      startAutoRefresh();
+    }
+
+    function startAutoRefresh() {
+      if (autoRefreshInterval) clearInterval(autoRefreshInterval);
+      autoRefreshInterval = setInterval(() => {
+        loadSiteData(currentSite.id, true);
+      }, 30000);
     }
 
     function renderTabs() {
@@ -210,18 +266,21 @@
       loadSiteData(siteId);
     }
 
-    async function loadSiteData(siteId) {
-      const container = document.getElementById('reportContent');
-      container.innerHTML = '<div class="loading">正在加载...</div>';
-
+    async function loadSiteData(siteId, silent = false) {
+      if (!silent) {
+        document.getElementById('reportContent').innerHTML = '<div class="loading">正在加载...</div>';
+      }
+      
       try {
         const response = await fetch('data/' + siteId + '-report.json?t=' + Date.now());
         if (!response.ok) throw new Error('报告文件不存在');
         const data = await response.json();
         renderReport(data);
-        loadKeywords(siteId);
+        if (!silent) showToast('数据加载成功');
       } catch (error) {
-        container.innerHTML = '<div class="error-msg"><h3>⚠️ 暂无报告数据</h3><p>请点击"运行检测"生成第一份报告</p></div>';
+        if (!silent) {
+          document.getElementById('reportContent').innerHTML = '<div class="error-msg"><h3>⚠️ 暂无报告数据</h3><p>请点击"运行检测"按钮开始监控</p></div>';
+        }
       }
     }
 
@@ -254,25 +313,49 @@
       html += '</tbody></table>';
 
       document.getElementById('reportContent').innerHTML = html;
-    }
-
-    function loadKeywords(siteId) {
-      fetch('sites/' + siteId + '-keywords.txt?t=' + Date.now())
-        .then(r => r.text())
-        .then(text => {
-          document.getElementById('keywordsText').value = text;
-        })
-        .catch(() => {});
-    }
-
-    function saveKeywords() {
-      const text = document.getElementById('keywordsText').value;
-      localStorage.setItem('keywords_' + currentSite.id, text);
-      showToast('关键词已保存到本地！');
+      document.getElementById('refreshStatus').textContent = '数据已加载 - ' + new Date().toLocaleTimeString();
     }
 
     function runMonitor() {
-      window.open('https://github.com/kaorouwave-cloud/geo-monitor-dashboard/actions?query=workflow:' + currentSite.id + '-monitor', '_blank');
+      document.getElementById('modal').classList.add('show');
+      document.getElementById('progressFill').style.width = '30%';
+      
+      window.open('https://github.com/kaorouwave-cloud/geo-monitor-dashboard/actions/workflows/monitor-and-deploy.yml?query=trigger:workflow_dispatch+is:completed', '_blank');
+      
+      let progress = 30;
+      const interval = setInterval(() => {
+        progress += 5;
+        if (progress < 90) {
+          document.getElementById('progressFill').style.width = progress + '%';
+        }
+      }, 5000);
+
+      setTimeout(() => {
+        clearInterval(interval);
+        document.getElementById('progressFill').style.width = '100%';
+        document.getElementById('modalTitle').textContent = '✅ 检测完成';
+        document.getElementById('modalText').textContent = '监控已完成，页面将自动刷新显示最新数据...';
+        
+        setTimeout(() => {
+          closeModal();
+          loadSiteData(currentSite.id);
+        }, 3000);
+      }, 300000);
+
+      setTimeout(() => {
+        if (document.getElementById('modal').classList.contains('show')) {
+          document.getElementById('progressFill').style.width = '90%';
+        }
+      }, 60000);
+    }
+
+    function refreshData() {
+      document.getElementById('refreshStatus').innerHTML = '<div class="spinner"></div> 正在刷新...';
+      loadSiteData(currentSite.id);
+    }
+
+    function closeModal() {
+      document.getElementById('modal').classList.remove('show');
     }
 
     function showToast(msg) {
