@@ -1,0 +1,76 @@
+name: Monitor and Deploy
+
+on:
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Clone geo-llms-toolkit
+        run: |
+          git clone --depth 1 https://github.com/aronhy/geo-llms-toolkit.git toolkit
+
+      - name: Install dependencies
+        run: |
+          pip install requests urllib3
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Monitor all sites
+        run: |
+          for site_file in sites/*-keywords.txt; do
+            site_name=$(basename "$site_file" "-keywords.txt")
+            echo "Monitoring $site_name..."
+            cp "$site_file" toolkit/examples/keywords.txt
+            cd toolkit
+            target_url=$(grep -A2 "\"id\": \"$site_name\"" ../config.json | grep "url" | cut -d'"' -f4)
+            if [ -z "$target_url" ]; then
+              target_url="$site_name.com"
+            fi
+            python standalone/geo_toolkit.py monitor "$target_url" --keywords-file ./examples/keywords.txt --output ../data/"$site_name-report.json" --format json || true
+            cd ..
+          done
+
+      - name: Upload data
+        uses: actions/upload-artifact@v4
+        with:
+          name: monitor-data
+          path: data/
+          retention-days: 7
+
+  deploy:
+    needs: monitor
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Download monitor data
+        uses: actions/download-artifact@v4
+        with:
+          name: monitor-data
+          path: data/
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v4
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
