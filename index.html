@@ -1,0 +1,288 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>GEO 监控系统</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+      min-height: 100vh;
+      color: #fff;
+      padding: 20px;
+    }
+    .container { max-width: 1400px; margin: 0 auto; }
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 30px;
+      flex-wrap: wrap;
+      gap: 15px;
+    }
+    h1 { font-size: 2rem; color: #00d4ff; }
+    .header-actions { display: flex; gap: 10px; flex-wrap: wrap; }
+    .btn {
+      padding: 10px 20px;
+      border: none;
+      border-radius: 20px;
+      font-size: 0.9rem;
+      cursor: pointer;
+      transition: all 0.3s;
+      text-decoration: none;
+    }
+    .btn-primary { background: linear-gradient(135deg, #00d4ff, #0066ff); color: #fff; }
+    .btn-secondary { background: rgba(255,255,255,0.1); color: #fff; border: 1px solid rgba(255,255,255,0.2); }
+    .btn:hover { transform: translateY(-2px); }
+    .site-selector {
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .site-selector h3 { color: #00d4ff; margin-bottom: 15px; }
+    .site-tabs { display: flex; gap: 10px; flex-wrap: wrap; }
+    .site-tab {
+      padding: 10px 20px;
+      background: rgba(255,255,255,0.1);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.3s;
+    }
+    .site-tab.active { background: #00d4ff; color: #000; border-color: #00d4ff; }
+    .site-tab:hover { border-color: #00d4ff; }
+    .dashboard {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 15px;
+      margin-bottom: 20px;
+    }
+    .stat-card {
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 20px;
+      text-align: center;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .stat-value { font-size: 2.5rem; font-weight: bold; color: #00d4ff; }
+    .stat-label { color: #888; margin-top: 5px; font-size: 0.9rem; }
+    .section {
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 25px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .section h2 { color: #00d4ff; margin-bottom: 20px; }
+    table { width: 100%; border-collapse: collapse; }
+    th, td { padding: 12px; text-align: left; border-bottom: 1px solid rgba(255,255,255,0.1); }
+    th { color: #00d4ff; }
+    tr:hover { background: rgba(255,255,255,0.05); }
+    .rank-badge {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 15px;
+      font-size: 0.85rem;
+    }
+    .rank-top { background: #00ff88; color: #000; }
+    .rank-mid { background: #ffaa00; color: #000; }
+    .rank-low { background: #ff6666; color: #fff; }
+    .rank-none { background: rgba(255,255,255,0.2); color: #888; }
+    .loading { text-align: center; padding: 50px; color: #888; }
+    .error-msg {
+      background: rgba(255,0,0,0.2);
+      border: 1px solid #ff4444;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+    .keywords-editor {
+      background: rgba(255,255,255,0.05);
+      border-radius: 15px;
+      padding: 20px;
+      margin-bottom: 20px;
+      border: 1px solid rgba(255,255,255,0.1);
+    }
+    .keywords-editor h3 { color: #00d4ff; margin-bottom: 15px; }
+    .keywords-textarea {
+      width: 100%;
+      min-height: 150px;
+      background: rgba(0,0,0,0.3);
+      border: 1px solid rgba(255,255,255,0.2);
+      border-radius: 10px;
+      color: #fff;
+      padding: 15px;
+      font-family: monospace;
+      resize: vertical;
+    }
+    .keywords-textarea:focus { outline: none; border-color: #00d4ff; }
+    .keywords-actions { margin-top: 15px; display: flex; gap: 10px; }
+    .toast {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      background: #00ff88;
+      color: #000;
+      padding: 15px 25px;
+      border-radius: 10px;
+      font-weight: bold;
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>🌐 GEO 监控系统</h1>
+      <div class="header-actions">
+        <a href="https://github.com/kaorouwave-cloud/geo-monitor-dashboard" target="_blank" class="btn btn-secondary">📂 源码</a>
+      </div>
+    </header>
+
+    <div class="site-selector">
+      <h3>选择监控站点</h3>
+      <div class="site-tabs" id="siteTabs"></div>
+    </div>
+
+    <div class="dashboard">
+      <div class="stat-card">
+        <div class="stat-value" id="keywordsTotal">-</div>
+        <div class="stat-label">监控关键词</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="rankedCount">-</div>
+        <div class="stat-label">已有排名</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="competitorsCount">-</div>
+        <div class="stat-label">竞争对手</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-value" id="lastUpdated">-</div>
+        <div class="stat-label">最后更新</div>
+      </div>
+    </div>
+
+    <div class="keywords-editor">
+      <h3>📝 关键词配置</h3>
+      <textarea class="keywords-textarea" id="keywordsText" placeholder="每行一个关键词"></textarea>
+      <div class="keywords-actions">
+        <button class="btn btn-primary" onclick="saveKeywords()">💾 保存</button>
+        <button class="btn btn-secondary" onclick="runMonitor()">🔄 运行检测</button>
+      </div>
+    </div>
+
+    <div class="section">
+      <h2>📈 关键词排名</h2>
+      <div id="reportContent"><div class="loading">正在加载...</div></div>
+    </div>
+  </div>
+
+  <div class="toast" id="toast">保存成功！</div>
+
+  <script>
+    const SITES = [
+      { id: 'kaorouwave', name: '守一 GEO 顾问', url: 'kaorouwave-cloud.github.io' },
+      { id: 'example', name: '示例网站', url: 'example.com' }
+    ];
+
+    let currentSite = SITES[0];
+
+    function init() {
+      renderTabs();
+      loadSiteData(currentSite.id);
+    }
+
+    function renderTabs() {
+      const container = document.getElementById('siteTabs');
+      container.innerHTML = SITES.map(site => 
+        '<div class="site-tab' + (site.id === currentSite.id ? ' active' : '') + '" onclick="switchSite(\'' + site.id + '\')">' + site.name + '</div>'
+      ).join('');
+    }
+
+    function switchSite(siteId) {
+      currentSite = SITES.find(s => s.id === siteId);
+      renderTabs();
+      loadSiteData(siteId);
+    }
+
+    async function loadSiteData(siteId) {
+      const container = document.getElementById('reportContent');
+      container.innerHTML = '<div class="loading">正在加载...</div>';
+
+      try {
+        const response = await fetch('data/' + siteId + '-report.json?t=' + Date.now());
+        if (!response.ok) throw new Error('报告文件不存在');
+        const data = await response.json();
+        renderReport(data);
+        loadKeywords(siteId);
+      } catch (error) {
+        container.innerHTML = '<div class="error-msg"><h3>⚠️ 暂无报告数据</h3><p>请点击"运行检测"生成第一份报告</p></div>';
+      }
+    }
+
+    function renderReport(data) {
+      const summary = data.summary || {};
+      const keywords = data.keywords || [];
+
+      document.getElementById('keywordsTotal').textContent = summary.keywords_total || 0;
+      document.getElementById('rankedCount').textContent = summary.keywords_target_ranked || 0;
+      document.getElementById('competitorsCount').textContent = summary.competitors_tracked || 0;
+
+      if (data.meta?.generated_at_utc) {
+        const date = new Date(data.meta.generated_at_utc);
+        document.getElementById('lastUpdated').textContent = date.toLocaleDateString('zh-CN');
+      }
+
+      let html = '<table><thead><tr><th>关键词</th><th>排名</th><th>TOP 5 竞争对手</th></tr></thead><tbody>';
+      keywords.forEach(kw => {
+        const rank = kw.target_rank || 0;
+        let rankClass = 'rank-none';
+        let rankText = '未排名';
+        if (rank > 0 && rank <= 3) { rankClass = 'rank-top'; rankText = '第 ' + rank + ' 名'; }
+        else if (rank > 3 && rank <= 10) { rankClass = 'rank-mid'; rankText = '第 ' + rank + ' 名'; }
+        else if (rank > 10) { rankClass = 'rank-low'; rankText = '第 ' + rank + ' 名'; }
+
+        const top5 = (kw.top_domains || []).slice(0, 5).join(', ');
+        html += '<tr><td><strong>' + kw.keyword + '</strong></td><td><span class="rank-badge ' + rankClass + '">' + rankText + '</span></td><td style="color:#888;font-size:0.85rem;">' + top5 + '</td></tr>';
+      });
+      if (!keywords.length) html += '<tr><td colspan="3" style="text-align:center;color:#888;">暂无数据</td></tr>';
+      html += '</tbody></table>';
+
+      document.getElementById('reportContent').innerHTML = html;
+    }
+
+    function loadKeywords(siteId) {
+      fetch('sites/' + siteId + '-keywords.txt?t=' + Date.now())
+        .then(r => r.text())
+        .then(text => {
+          document.getElementById('keywordsText').value = text;
+        })
+        .catch(() => {});
+    }
+
+    function saveKeywords() {
+      const text = document.getElementById('keywordsText').value;
+      localStorage.setItem('keywords_' + currentSite.id, text);
+      showToast('关键词已保存到本地！');
+    }
+
+    function runMonitor() {
+      window.open('https://github.com/kaorouwave-cloud/geo-monitor-dashboard/actions?query=workflow:' + currentSite.id + '-monitor', '_blank');
+    }
+
+    function showToast(msg) {
+      const toast = document.getElementById('toast');
+      toast.textContent = msg;
+      toast.style.display = 'block';
+      setTimeout(() => toast.style.display = 'none', 3000);
+    }
+
+    init();
+  </script>
+</body>
+</html>

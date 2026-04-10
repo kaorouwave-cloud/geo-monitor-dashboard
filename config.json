@@ -1,0 +1,16 @@
+{
+  "sites": [
+    {
+      "id": "kaorouwave",
+      "name": "守一 GEO 顾问",
+      "url": "kaorouwave-cloud.github.io",
+      "keywords_file": "sites/kaorouwave-keywords.txt"
+    },
+    {
+      "id": "example",
+      "name": "示例网站",
+      "url": "example.com",
+      "keywords_file": "sites/example-keywords.txt"
+    }
+  ]
+}

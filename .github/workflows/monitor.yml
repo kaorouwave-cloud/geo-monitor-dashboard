@@ -1,0 +1,47 @@
+name: Monitor All Sites
+
+on:
+  workflow_dispatch:
+
+jobs:
+  monitor:
+    runs-on: ubuntu-latest
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Clone geo-llms-toolkit
+        run: |
+          git clone --depth 1 https://github.com/aronhy/geo-llms-toolkit.git toolkit
+
+      - name: Install dependencies
+        run: |
+          pip install requests urllib3
+
+      - name: Create data directory
+        run: mkdir -p data
+
+      - name: Monitor kaorouwave
+        run: |
+          cp sites/kaorouwave-keywords.txt toolkit/examples/keywords.txt
+          cd toolkit
+          python standalone/geo_toolkit.py monitor kaorouwave-cloud.github.io --keywords-file ./examples/keywords.txt --output ../data/kaorouwave-report.json --format json || true
+
+      - name: Monitor example
+        run: |
+          cp sites/example-keywords.txt toolkit/examples/keywords.txt
+          cd toolkit
+          python standalone/geo_toolkit.py monitor example.com --keywords-file ./examples/keywords.txt --output ../data/example-report.json --format json || true
+
+      - name: Upload results
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: data
